@@ -1,0 +1,11 @@
+# Copyright 2015, Yahoo Inc.
+# Licensed under the terms of the Apache License 2.0. Please see LICENSE file in the project root for terms.
+
+kafka.brokers:
+  - "localhost"
+
+kafka.port: 9092
+redis.host: localhost
+redis.port: 6379
+kafka.topic: "ad-events"
+kafka.partitions: 3
