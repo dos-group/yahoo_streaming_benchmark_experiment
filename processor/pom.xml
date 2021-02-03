@@ -11,6 +11,10 @@
 	<groupId>de.tu_berlin.dos.arm.yahoo_streaming_benchmark_experiment</groupId>
 	<artifactId>processor</artifactId>
 
+	<properties>
+		<flinkVersion>1.12.1</flinkVersion>
+	</properties>
+
 	<dependencies>
 
 		<!-- module dependencies -->
@@ -24,35 +28,35 @@
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-java</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-scala_2.12</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-streaming-java_2.12</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-connector-kafka_2.12</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-connector-cassandra_2.12</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-statebackend-rocksdb_2.12</artifactId>
-			<version>1.11.2</version>
+			<version>${flinkVersion}</version>
 		</dependency>
 
 		<!-- JSON dependencies -->
@@ -124,8 +128,7 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.8.1</version>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
+					<release>11</release>
 				</configuration>
 			</plugin>
 
