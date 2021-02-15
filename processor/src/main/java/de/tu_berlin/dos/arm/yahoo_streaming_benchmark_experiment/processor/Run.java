@@ -9,6 +9,8 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
+import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -21,10 +23,7 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
 import org.apache.flink.util.Collector;
 import org.apache.log4j.Logger;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class Run {
 
@@ -116,10 +115,17 @@ public class Run {
     public static void main(final String[] args) throws Exception {
 
         // ensure checkpoint interval is supplied as an argument
-        if (args.length != 1) {
-            throw new IllegalStateException("Required Command line argument: [CHECKPOINT_INTERVAL]");
+        if (args.length != 6) {
+            throw new IllegalStateException("Required Command line argument: jobName brokerList consumerTopic producerTopic partitions checkpointInterval");
+            //throw new IllegalStateException("Required Command line argument: [CHECKPOINT_INTERVAL]");
         }
-        int interval = Integer.parseInt(args[0]);
+        String jobName = args[0];
+        String brokerList = args[1];
+        String consumerTopic = args[2];
+        String producerTopic = args[3];
+        int partitions = Integer.parseInt(args[4]);
+        int checkpointInterval = Integer.parseInt(args[5]);
+        //int interval = Integer.parseInt(args[0]);
 
         // retrieve properties from file
         Properties props = FileReader.GET.read("advertising.properties", Properties.class);
@@ -138,12 +144,12 @@ public class Run {
         env.disableOperatorChaining();
 
         // configuring RocksDB state backend to use HDFS
-/*        String backupFolder = props.getProperty("hdfs.backupFolder");
+        String backupFolder = props.getProperty("hdfs.backupFolder");
         StateBackend backend = new RocksDBStateBackend(backupFolder, true);
         env.setStateBackend(backend);
 
         // start a checkpoint based on supplied interval
-        env.enableCheckpointing(interval);*/
+        env.enableCheckpointing(checkpointInterval);
 
         // set mode to exactly-once (this is the default)
         env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
@@ -159,13 +165,13 @@ public class Run {
 
         // setup Kafka consumer
         Properties kafkaConsumerProps = new Properties();
-        kafkaConsumerProps.setProperty("bootstrap.servers", props.getProperty("kafka.brokers")); // Broker default host:port
-        kafkaConsumerProps.setProperty("group.id", props.getProperty("kafka.consumer.group"));   // Consumer group ID
-        kafkaConsumerProps.setProperty("auto.offset.reset", "earliest");                         // Always read topic from start
+        kafkaConsumerProps.setProperty("bootstrap.servers", brokerList); // Broker default host:port
+        kafkaConsumerProps.setProperty("group.id", UUID.randomUUID().toString());   // Consumer group ID
+        kafkaConsumerProps.setProperty("auto.offset.reset", "latest");                         // Always read topic from latest
 
         FlinkKafkaConsumer<AdEvent> myConsumer =
             new FlinkKafkaConsumer<>(
-                props.getProperty("kafka.consumer.topic"),
+                consumerTopic,
                 new AdEventSchema(),
                 kafkaConsumerProps);
 
@@ -180,7 +186,7 @@ public class Run {
         DataStream<AdEvent> messageStream =
             env.addSource(myConsumer)
                 .name("DeserializeBolt")
-                .setParallelism(Integer.parseInt(props.getProperty("kafka.partitions")));
+                .setParallelism(partitions);
 
         messageStream
             //Filter the records if event type is "view"
@@ -199,6 +205,6 @@ public class Run {
             .process(new CampaignProcessorV2())
             .name("CampaignProcessor");
 
-        env.execute("Advertising");
+        env.execute(jobName);
     }
 }
