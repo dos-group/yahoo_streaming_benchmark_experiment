@@ -1,6 +1,8 @@
 package de.tu_berlin.dos.arm.yahoo_streaming_benchmark_experiment.processor;
 
 import de.tu_berlin.dos.arm.yahoo_streaming_benchmark_experiment.common.utils.FileReader;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
@@ -17,18 +19,25 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.CheckpointConfig.ExternalizedCheckpointCleanup;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer;
+import org.apache.flink.streaming.connectors.kafka.KafkaSerializationSchema;
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer.Semantic;
 import org.apache.flink.util.Collector;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.log4j.Logger;
 
+import java.time.Duration;
 import java.util.*;
 
 public class Run {
 
     private static final Logger LOG = Logger.getLogger(Run.class);
-    private static final int MAX_EVENT_DELAY = 60;
+    private static final int MAX_EVENT_DELAY = 20;
 
     public static class EventFilterBolt implements FilterFunction<AdEvent> {
 
@@ -78,7 +87,7 @@ public class Run {
     }
 
 
-    public static class CampaignProcessorV2 extends ProcessWindowFunction<Tuple3<String, String, Long>, Tuple3<String, Long, Long>, Tuple, TimeWindow> {
+    public static class CampaignProcessor extends ProcessWindowFunction<Tuple3<String, String, Long>, Tuple3<String, Long, Long>, Tuple, TimeWindow> {
 
         private String redisServerHostname;
 
@@ -104,11 +113,20 @@ public class Run {
                 count++;
                 iterator.next();
             }
-            // create output of operator, of course, there is nothing to consume this, but thats fine
+            // create output of operator
             out.collect(new Tuple3<>(campaign_id, count, context.window().getEnd()));
 
             // write campaign id, the ad count, the timestamp of the window to redis
-            Redis.execute(campaign_id, count, context.window().getEnd(), redisServerHostname);
+            // Redis.execute(campaign_id, count, context.window().getEnd(), redisServerHostname);
+        }
+    }
+
+    public static class PrepareMessage implements MapFunction<Tuple3<String, Long, Long>, String> {
+        @Override
+        public String map(Tuple3<String, Long, Long> value) throws Exception {
+            return String.format(
+                    "{campaign_id: %s, count: '%d', window: %d}",
+                    value.f0, value.f1, value.f2);
         }
     }
 
@@ -117,7 +135,6 @@ public class Run {
         // ensure checkpoint interval is supplied as an argument
         if (args.length != 6) {
             throw new IllegalStateException("Required Command line argument: jobName brokerList consumerTopic producerTopic partitions checkpointInterval");
-            //throw new IllegalStateException("Required Command line argument: [CHECKPOINT_INTERVAL]");
         }
         String jobName = args[0];
         String brokerList = args[1];
@@ -125,7 +142,6 @@ public class Run {
         String producerTopic = args[3];
         int partitions = Integer.parseInt(args[4]);
         int checkpointInterval = Integer.parseInt(args[5]);
-        //int interval = Integer.parseInt(args[0]);
 
         // retrieve properties from file
         Properties props = FileReader.GET.read("advertising.properties", Properties.class);
@@ -165,9 +181,9 @@ public class Run {
 
         // setup Kafka consumer
         Properties kafkaConsumerProps = new Properties();
-        kafkaConsumerProps.setProperty("bootstrap.servers", brokerList); // Broker default host:port
-        kafkaConsumerProps.setProperty("group.id", UUID.randomUUID().toString());   // Consumer group ID
-        kafkaConsumerProps.setProperty("auto.offset.reset", "latest");                         // Always read topic from latest
+        kafkaConsumerProps.setProperty("bootstrap.servers", brokerList);           // Broker default host:port
+        kafkaConsumerProps.setProperty("group.id", UUID.randomUUID().toString());  // Consumer group ID
+        kafkaConsumerProps.setProperty("auto.offset.reset", "latest");             // Always read topic from latest
 
         FlinkKafkaConsumer<AdEvent> myConsumer =
             new FlinkKafkaConsumer<>(
@@ -175,12 +191,33 @@ public class Run {
                 new AdEventSchema(),
                 kafkaConsumerProps);
 
+        // setup Kafka producer
+        Properties kafkaProducerProps = new Properties();
+        kafkaProducerProps.setProperty("bootstrap.servers", brokerList);
+        kafkaProducerProps.setProperty(ProducerConfig.TRANSACTION_TIMEOUT_CONFIG, "3600000");
+        kafkaProducerProps.setProperty(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "5");
+        kafkaProducerProps.setProperty(ProducerConfig.TRANSACTIONAL_ID_CONFIG, UUID.randomUUID().toString());
+        kafkaProducerProps.setProperty(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+        kafkaProducerProps.setProperty(ProducerConfig.LINGER_MS_CONFIG, "1000");
+        kafkaProducerProps.setProperty(ProducerConfig.BATCH_SIZE_CONFIG, "16384");
+        kafkaProducerProps.setProperty(ProducerConfig.BUFFER_MEMORY_CONFIG, "33554432");
+
+        FlinkKafkaProducer<String> myProducer =
+                new FlinkKafkaProducer<>(
+                        producerTopic,
+                        (KafkaSerializationSchema<String>) (value, aLong) -> {
+                            return new ProducerRecord<>(producerTopic, value.getBytes());
+                        },
+                        kafkaProducerProps,
+                        Semantic.EXACTLY_ONCE);
+        myProducer.setWriteTimestampToKafka(true);
+
         // configure event-time and watermarks
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.getConfig().setAutoWatermarkInterval(1000L);
 
         // assign a timestamp extractor to the consumer
-        myConsumer.assignTimestampsAndWatermarks(new AdEventTSExtractor(MAX_EVENT_DELAY));
+        myConsumer.assignTimestampsAndWatermarks(WatermarkStrategy.forBoundedOutOfOrderness(Duration.ofSeconds(MAX_EVENT_DELAY)));
 
         // create direct kafka stream
         DataStream<AdEvent> messageStream =
@@ -200,10 +237,13 @@ public class Run {
             .name("RedisJoinBolt")
             // process campaign
             .keyBy(0)
-            //.flatMap(new CampaignProcessor())
-            .timeWindow(Time.milliseconds(10000))
-            .process(new CampaignProcessorV2())
-            .name("CampaignProcessor");
+            .window(TumblingEventTimeWindows.of(Time.seconds(10)))
+            .process(new CampaignProcessor())
+            .name("CampaignProcessor")
+            .map(new PrepareMessage())
+            .name("PrepareMessage")
+            .addSink(myProducer)
+            .name("KafkaSink-" + RandomStringUtils.random(10, true, true));
 
         env.execute(jobName);
     }
