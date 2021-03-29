@@ -13,15 +13,12 @@ public class AdEventSchema implements DeserializationSchema<AdEvent>, Serializat
 
     private static AdEvent fromString(String input) {
         JSONObject obj = new JSONObject(input);
+        Long ts = Long.valueOf(obj.getString("ts"));
         AdEvent adEvent =
             new AdEvent(
-                obj.getString("user_id"),
-                obj.getString("page_id"),
-                obj.getString("ad_id"),
-                obj.getString("ad_type"),
-                obj.getString("event_type"),
-                obj.getLong("event_time"),
-                obj.getString("ip_address"));
+                ts,
+                obj.getString("id"),
+                obj.getString("et"));
         LOG.info(adEvent);
         return adEvent;
     }

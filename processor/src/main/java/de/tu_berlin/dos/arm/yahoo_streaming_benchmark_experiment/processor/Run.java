@@ -44,7 +44,7 @@ public class Run {
         @Override
         public boolean filter(AdEvent adEvent) throws Exception {
 
-            return adEvent.getEvent_type().equals("view");
+            return adEvent.getEt().equals("view");
         }
     }
 
@@ -53,7 +53,7 @@ public class Run {
         @Override
         public Tuple2<String, Long> map(AdEvent adEvent) throws Exception {
 
-            return new Tuple2<>(adEvent.getAd_id(), adEvent.getEvent_time());
+            return new Tuple2<>(adEvent.getId(), adEvent.getTs());
         }
     }
 
@@ -183,7 +183,7 @@ public class Run {
         Properties kafkaConsumerProps = new Properties();
         kafkaConsumerProps.setProperty("bootstrap.servers", brokerList);           // Broker default host:port
         kafkaConsumerProps.setProperty("group.id", UUID.randomUUID().toString());  // Consumer group ID
-        kafkaConsumerProps.setProperty("auto.offset.reset", "latest");             // Always read topic from latest
+        kafkaConsumerProps.setProperty("auto.offset.reset", "earliest");             // Always read topic from start
 
         FlinkKafkaConsumer<AdEvent> myConsumer =
             new FlinkKafkaConsumer<>(

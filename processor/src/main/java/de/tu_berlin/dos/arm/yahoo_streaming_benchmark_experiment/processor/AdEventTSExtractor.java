@@ -12,6 +12,6 @@ public class AdEventTSExtractor extends BoundedOutOfOrdernessTimestampExtractor<
     @Override
     public long extractTimestamp(AdEvent adEvent) {
 
-        return adEvent.getEvent_time();
+        return adEvent.getTs();
     }
 }
