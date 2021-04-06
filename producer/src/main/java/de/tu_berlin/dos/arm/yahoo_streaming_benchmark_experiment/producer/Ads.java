@@ -71,7 +71,8 @@ public class Ads {
                         String eventType = eventTypes[rand.nextInt(eventTypes.length)];
 
                         AdEvent adEvent = new AdEvent(e.creationDate, adId, eventType);
-                        this.kafkaProducer.send(new ProducerRecord<>(this.topic, adEvent));
+                        this.kafkaProducer.send(new ProducerRecord<>(
+                                this.topic, null, adEvent.getTs(), adEvent.getId(), adEvent));
                     }
                 })
                 .matchAny(o -> LOG.error("received unknown message: " + o))

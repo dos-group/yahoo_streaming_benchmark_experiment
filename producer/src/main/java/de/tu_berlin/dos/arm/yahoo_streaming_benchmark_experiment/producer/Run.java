@@ -13,7 +13,9 @@ import org.apache.log4j.Logger;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.util.Map;
 import java.util.Properties;
 
@@ -84,11 +86,27 @@ public class Run {
         // write campaign ids
         jedis.sadd("campaigns", Ads.campaignIds);
 
+        String campaignIdsFile = producerProps.getProperty("dataset.campaignIds");
+        String adIdsFile = producerProps.getProperty("dataset.adIds");
+
+        File outputFileCampaigns = new File(campaignIdsFile);
+        File outputFileAds = new File(adIdsFile);
+
+        if (!outputFileCampaigns.createNewFile()) throw new IllegalStateException("Unable to create output file");
+        if (!outputFileAds.createNewFile()) throw new IllegalStateException("Unable to create output file");
+
+        BufferedWriter campaignWriter = new BufferedWriter(new FileWriter(outputFileCampaigns));
+        BufferedWriter adWriter = new BufferedWriter(new FileWriter(outputFileAds));
+
         // assign 10 ads to each campaign
         System.out.print("Writing ads to redis...");
         for (int i = 0; i < Ads.campaignIds.length; i++) {
+            campaignWriter.write(Ads.campaignIds[i]);
+            campaignWriter.newLine();
             for (int j = 0; j < 10; j++) {
                 jedis.set(Ads.adIds[i*10+j], Ads.campaignIds[i]);
+                adWriter.write(Ads.adIds[i*10+j]);
+                adWriter.newLine();
             }
         }
 
