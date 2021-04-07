@@ -99,7 +99,7 @@ public class Run {
         BufferedWriter adWriter = new BufferedWriter(new FileWriter(outputFileAds));
 
         // assign 10 ads to each campaign
-        System.out.print("Writing ads to redis...");
+        System.out.println("Writing ads to redis...");
         for (int i = 0; i < Ads.campaignIds.length; i++) {
             campaignWriter.write(Ads.campaignIds[i]);
             campaignWriter.newLine();
@@ -110,8 +110,11 @@ public class Run {
             }
         }
 
+        campaignWriter.close();
+        adWriter.close();
+
         // initialize generation of ad events
-        System.out.print("Generating ads...");
+        System.out.println("Generating ads...");
         Generator.GET.generate(ts, largest, producerProps.getProperty("kafka.topic"), kafkaProducer);
     }
 }
