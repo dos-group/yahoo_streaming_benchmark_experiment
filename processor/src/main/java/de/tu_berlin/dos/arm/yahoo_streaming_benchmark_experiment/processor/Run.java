@@ -152,7 +152,9 @@ public class Run {
             propsMap.put(name, props.getProperty(name));
         }
 
+        // set up streaming execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setBufferTimeout(-1);
 
         // setting global properties from file
         env.getConfig().setGlobalJobParameters(ParameterTool.fromMap(propsMap));
@@ -171,13 +173,16 @@ public class Run {
         env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
 
         // checkpoints have to complete within two minute, or are discarded
-        env.getCheckpointConfig().setCheckpointTimeout(380000);
+        env.getCheckpointConfig().setCheckpointTimeout(3600000);
+        env.getCheckpointConfig().setTolerableCheckpointFailureNumber(3);
 
         // enable externalized checkpoints which are deleted after job cancellation
         env.getCheckpointConfig().enableExternalizedCheckpoints(ExternalizedCheckpointCleanup.DELETE_ON_CANCELLATION);
 
-        // allow job recovery fallback to checkpoint when there is a more recent savepoint
-        env.getCheckpointConfig().setPreferCheckpointForRecovery(true);
+        // no external services which could take some time to respond, therefore 1
+        // allow only one checkpoint to be in progress at the same time
+        env.getCheckpointConfig().setMaxConcurrentCheckpoints(100);
+
 
         // setup Kafka consumer
         Properties kafkaConsumerProps = new Properties();
