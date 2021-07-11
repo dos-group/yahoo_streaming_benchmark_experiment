@@ -16,7 +16,7 @@ For config of kafka, the job now reqires 6 arguments to be passed to the command
 
 jobName brokerList consumerTopic producerTopic partitions checkpointInterval, e.g.: 
 
-advertising 130.149.249.40:32690,130.149.249.40:32691,130.149.249.40:32692 ad-events ad-notifications 8 30000
+advertising 130.149.249.40:9092 ad-events ad-notifications 4 30000
 
 ---
 
