@@ -188,7 +188,7 @@ public class Run {
         Properties kafkaConsumerProps = new Properties();
         kafkaConsumerProps.setProperty("bootstrap.servers", brokerList);           // Broker default host:port
         kafkaConsumerProps.setProperty("group.id", UUID.randomUUID().toString());  // Consumer group ID
-        kafkaConsumerProps.setProperty("auto.offset.reset", "earliest");             // Always read topic from start
+        kafkaConsumerProps.setProperty("auto.offset.reset", "latest");             // Always read topic from start
 
         FlinkKafkaConsumer<AdEvent> myConsumer =
             new FlinkKafkaConsumer<>(
@@ -208,21 +208,21 @@ public class Run {
         kafkaProducerProps.setProperty(ProducerConfig.BUFFER_MEMORY_CONFIG, "33554432");
 
         FlinkKafkaProducer<String> myProducer =
-                new FlinkKafkaProducer<>(
-                        producerTopic,
-                        (KafkaSerializationSchema<String>) (value, aLong) -> {
-                            return new ProducerRecord<>(producerTopic, value.getBytes());
-                        },
-                        kafkaProducerProps,
-                        Semantic.EXACTLY_ONCE);
+            new FlinkKafkaProducer<>(
+                producerTopic,
+                (KafkaSerializationSchema<String>) (value, aLong) -> {
+                    return new ProducerRecord<>(producerTopic, value.getBytes());
+                },
+                kafkaProducerProps,
+                Semantic.EXACTLY_ONCE);
         myProducer.setWriteTimestampToKafka(true);
 
         // configure event-time and watermarks
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        env.getConfig().setAutoWatermarkInterval(1000L);
+        //env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+        //env.getConfig().setAutoWatermarkInterval(1000L);
 
         // assign a timestamp extractor to the consumer
-        myConsumer.assignTimestampsAndWatermarks(WatermarkStrategy.forBoundedOutOfOrderness(Duration.ofSeconds(MAX_EVENT_DELAY)));
+        myConsumer.assignTimestampsAndWatermarks(WatermarkStrategy.forBoundedOutOfOrderness(Duration.ofSeconds(1)));
 
         // create direct kafka stream
         DataStream<AdEvent> messageStream =
@@ -242,7 +242,7 @@ public class Run {
             .name("RedisJoinBolt")
             // process campaign
             .keyBy(0)
-            .window(TumblingEventTimeWindows.of(Time.seconds(10)))
+            .window(TumblingEventTimeWindows.of(Time.seconds(60)))
             .process(new CampaignProcessor())
             .name("CampaignProcessor")
             .map(new PrepareMessage())

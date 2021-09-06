@@ -115,6 +115,6 @@ public class Run {
 
         // initialize generation of ad events
         System.out.println("Generating ads...");
-        Generator.GET.generate(ts, largest, producerProps.getProperty("kafka.topic"), kafkaProducer);
+        //Generator.GET.generate(ts, largest, producerProps.getProperty("kafka.topic"), kafkaProducer);
     }
 }

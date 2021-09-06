@@ -12,7 +12,7 @@
 	<artifactId>processor</artifactId>
 
 	<properties>
-		<flinkVersion>1.12.1</flinkVersion>
+		<flinkVersion>1.12.4</flinkVersion>
 	</properties>
 
 	<dependencies>
